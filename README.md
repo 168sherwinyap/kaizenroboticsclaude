@@ -15,11 +15,18 @@ about this hardware that Claude Code reads at the start of a session.
 - A USB data cable
 - Claude Code
 - Chrome or Edge, because the browser apps use Web Serial and other browsers do not support it
-- Python 3, which serves the browser apps and runs the scripts that check the board
+- Python 3 (with `pip install -r requirements.txt`), which serves the browser apps and
+  runs the scripts that check the board
 - Optional: Node.js and `npm install -g makecode`, needed only to build a changed board
   program
 
-Launchers (`run_*.cmd`) and the PowerShell scripts are written for Windows.
+PC-side tooling is cross-platform: Python scripts (run `pip install -r requirements.txt`)
+with a `.sh` launcher for macOS/Linux and a `.cmd` launcher for Windows. The serial port is
+auto-detected; the micro:bit mounts as a drive labelled `MICROBIT`.
+
+On macOS and Linux, run `./setup.sh` once after cloning instead of `pip install`. It
+creates a `.venv` folder with the Python packages in it. Run the scripts with
+`.venv/bin/python` where this page says `python`. The `.sh` launchers already do this.
 
 ## First run
 
@@ -37,15 +44,16 @@ Launchers (`run_*.cmd`) and the PowerShell scripts are written for Windows.
 
 | Program | What it does | Folder |
 |---|---|---|
-| Faces and servo | Keyboard keys show a face on the micro:bit and move a servo, over USB | `main.py`, `keyboard_bridge.ps1` |
+| Faces and servo | Keyboard keys show a face on the micro:bit and move a servo, over USB | `main.py`, `keyboard_bridge.py` |
 | Bluetooth keyboard mirror | Typed keys scroll on the micro:bit, over Bluetooth | `ble/` |
 | Flappy Bird hand control | Your hand height above the sensor moves the bird in a browser game | `flappy/` |
 | Pushup counter | Counts pushups with the distance sensor, in the browser | `kaizen-pushup/` |
 | Sonar Sentinel | A servo sweeps the sensor and a browser page draws a radar; a second servo closes a guard arm | `sentinel/` |
 | HandLab | A browser dashboard shows every micro:bit sensor and moves five servos as a hand | `handlab/` |
 
-Each MakeCode folder has a built program file at `built/binary.hex`. Copy that file to the
-MICROBIT drive to load it onto the board.
+Each MakeCode folder has a built program file at `built/binary.hex`. Run
+`python scripts/flash.py <folder>/built/binary.hex` (or copy that file to the MICROBIT
+drive) to load it onto the board.
 
 ## Documentation
 

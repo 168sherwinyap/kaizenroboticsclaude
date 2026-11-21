@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """Read and exercise the Sonar Sentinel USB serial protocol.
 
-The browser page owns the COM port exclusively, so close it (or the tab) first.
+The browser page owns the serial port exclusively, so close it (or the tab) first.
 
 Usage:
     python scripts/radar_probe.py                 # auto-detect, 12 s
-    python scripts/radar_probe.py COM8 20
-    python scripts/radar_probe.py COM8 25 --send "2:i;5:t:40;10:p;14:s;18:w"
+    python scripts/radar_probe.py <port> 20
+    python scripts/radar_probe.py <port> 25 --send "2:i;5:t:40;10:p;14:s;18:w"
 
 Scheduled commands use "<seconds>:<command>" separated by ';'. Commands:
     i  identify (SYS:READY,PCA=OK|ERR,ALARM=0|1)
@@ -55,7 +55,7 @@ def parse_schedule(text):
 
 def main():
     ap = argparse.ArgumentParser(description="Sonar Sentinel serial probe")
-    ap.add_argument("port", nargs="?", help="COM port (default: auto-detect micro:bit)")
+    ap.add_argument("port", nargs="?", help="serial port (default: auto-detect micro:bit)")
     ap.add_argument("seconds", nargs="?", type=float, default=12.0, help="duration (default 12)")
     ap.add_argument("--send", default="1:i", help='scheduled commands, e.g. "2:i;6:p;9:s"')
     ap.add_argument("--quiet", action="store_true", help="only print the summary")
@@ -63,7 +63,7 @@ def main():
 
     port = args.port or find_port()
     if not port:
-        sys.exit("No micro:bit serial port found (VID_0D28&PID_0204). Pass one, e.g. COM8.")
+        sys.exit("No micro:bit serial port found (VID_0D28&PID_0204). Pass one explicitly.")
 
     try:
         ser = serial.Serial(port, 115200, timeout=0.2)

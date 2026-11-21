@@ -38,15 +38,17 @@ cd sentinel
 makecode
 ```
 
-```powershell
-cmd /c copy /b ".\built\binary.hex" D:\MICROBIT.HEX
+```bash
+# from the repository root
+python scripts/flash.py sentinel/built/binary.hex
 ```
 
-(the drive is DAPLink storage: the file vanishes and the board reboots when the flash
-succeeds; retry on `FAIL.TXT`)
+(the MICROBIT volume is DAPLink storage: the file vanishes and the board reboots when the
+flash succeeds; retry on `FAIL.TXT`)
 
-Then double-click `run_sentinel.cmd` at the repo root, click **Connect board**, and pick
-the micro:bit port. Chrome or Edge only — Web Serial needs `localhost`.
+Then run `./run_sentinel.sh` (macOS/Linux) or `run_sentinel.cmd` (Windows) at the repo
+root, click **Connect board**, and pick the micro:bit port. Chrome or Edge only — Web
+Serial needs `localhost`.
 
 ## Controls
 
@@ -95,9 +97,11 @@ sensor stream keeps working; the servos will not.
 Close the browser tab first (Web Serial owns the port exclusively):
 
 ```
-python scripts/radar_probe.py COM8 15
-python scripts/radar_probe.py COM8 25 --send "2:i;5:t:40;10:p;14:s;18:w"
+python scripts/radar_probe.py 15
+python scripts/radar_probe.py 25 --send "2:i;5:t:40;10:p;14:s;18:w"
 ```
+
+(the probe auto-detects the serial port)
 
 ## Troubleshooting
 
@@ -112,6 +116,7 @@ python scripts/radar_probe.py COM8 25 --send "2:i;5:t:40;10:p;14:s;18:w"
 
 ## Going back
 
-The Flappy Bird firmware is still at `flappy/built/binary.hex`. Copying it to
-`D:\MICROBIT.HEX` restores that demo; MicroPython is restored with
-`firmware/micropython-microbit-v2.1.1.hex` plus `scripts/install_servo.ps1`.
+The Flappy Bird firmware is still at `flappy/built/binary.hex`. Running
+`python scripts/flash.py flappy/built/binary.hex` restores that demo; MicroPython is
+restored with `firmware/micropython-microbit-v2.1.1.hex` plus
+`python scripts/install_servo.py`.

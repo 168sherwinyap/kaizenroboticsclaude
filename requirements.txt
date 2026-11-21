@@ -1,0 +1,9 @@
+# Python dependencies for the PC-side tools.
+# Install with:  pip install -r requirements.txt
+#
+# pynput captures keys globally. On macOS grant the terminal "Accessibility"
+# permission once (System Settings -> Privacy & Security -> Accessibility); on
+# Linux it needs an X11 display (python3-xlib).
+pyserial
+bleak
+pynput

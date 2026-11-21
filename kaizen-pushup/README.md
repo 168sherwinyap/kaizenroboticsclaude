@@ -25,7 +25,8 @@ A browser app that counts pushups using the micro:bit + HC-SR04 ultrasonic senso
 ## Run
 
 1. Make sure the board is flashed with `../flappy/built/binary.hex`.
-2. Double-click `run_kaizen_pushup.cmd` (serves this folder on `:8001`).
+2. Run `./run_kaizen_pushup.sh` (macOS/Linux) or `run_kaizen_pushup.cmd` (Windows) —
+   serves this folder on `:8001`.
 3. Open in Chrome/Edge, **Connect** the board, set target + sets, **Start**.
 
 ## Tunables

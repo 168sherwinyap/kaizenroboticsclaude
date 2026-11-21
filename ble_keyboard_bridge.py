@@ -13,13 +13,16 @@ Stop: Ctrl+C
 
 import argparse
 import asyncio
-import ctypes
 import queue
 import sys
 import threading
-import time
 
 from bleak import BleakClient, BleakScanner
+
+try:
+    from pynput import keyboard as pynput_keyboard
+except ImportError:
+    pynput_keyboard = None
 
 NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 # The micro:bit DAL exposes the NUS characteristic roles swapped from the
@@ -28,50 +31,72 @@ NUS_SERVICE = "6e400001-b5a3-f393-e0a9-e50e24dcca9e"
 NUS_RX_CHAR = "6e400003-b5a3-f393-e0a9-e50e24dcca9e"
 NUS_TX_CHAR = "6e400002-b5a3-f393-e0a9-e50e24dcca9e"
 
-POLL_SECONDS = 0.008          # key polling interval
 SEND_TIMEOUT = 30.0           # seconds to wait for a board to appear
 
-
-def build_keymap():
-    """Virtual-key code -> character, for A-Z and 0-9 (US layout VK codes)."""
-    keys = {}
-    for ch in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-        keys[ord(ch)] = ch
-    for ch in "0123456789":
-        keys[ord(ch)] = ch
-    return keys
-
-
-KEYMAP = build_keymap()
-
-
-VK_CONTROL = 0x11
+KEY_CHARS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 COMMAND_KEYS = "KJRX"         # these become servo commands when Ctrl is held
 
 
 def poll_keyboard(out_queue, stop_event, debug=False):
-    """Global key-down edge detection via GetAsyncKeyState (works unfocused).
+    """Global key listener via pynput (works on Windows/macOS/Linux).
 
     Ctrl+K/J/R/X sends a "!k"/"!j"/"!r"/"!x" command (faces + servo); the same
     letters without Ctrl are mirrored as ordinary characters.
     """
-    user32 = ctypes.windll.user32
-    previous = {vk: False for vk in KEYMAP}
-    while not stop_event.is_set():
-        ctrl_down = bool(user32.GetAsyncKeyState(VK_CONTROL) & 0x8000)
-        for vk, ch in KEYMAP.items():
-            down = bool(user32.GetAsyncKeyState(vk) & 0x8000)
-            if down and not previous[vk]:
-                if ctrl_down and ch in COMMAND_KEYS:
-                    out_queue.put("!" + ch.lower())
-                    if debug:
-                        print("command !%s" % ch.lower(), flush=True)
-                else:
-                    out_queue.put(ch)
-                    if debug:
-                        print("key %s" % ch, flush=True)
-            previous[vk] = down
-        time.sleep(POLL_SECONDS)
+    if pynput_keyboard is None:
+        print("pynput is required for keyboard capture: pip install pynput", flush=True)
+        return
+
+    ctrl_down = False
+    held = set()
+    lock = threading.Lock()
+
+    def on_press(key):
+        nonlocal ctrl_down
+        if key in (pynput_keyboard.Key.ctrl, pynput_keyboard.Key.ctrl_l, pynput_keyboard.Key.ctrl_r):
+            ctrl_down = True
+            return
+        try:
+            ch = key.char
+        except AttributeError:
+            return
+        if not ch:
+            return
+        ch = ch.upper()
+        if ch not in KEY_CHARS:
+            return
+        with lock:
+            if ch in held:
+                return  # OS auto-repeat: already sent on the key-down edge
+            held.add(ch)
+        if ctrl_down and ch in COMMAND_KEYS:
+            out_queue.put("!" + ch.lower())
+            if debug:
+                print("command !%s" % ch.lower(), flush=True)
+        else:
+            out_queue.put(ch)
+            if debug:
+                print("key %s" % ch, flush=True)
+
+    def on_release(key):
+        nonlocal ctrl_down
+        if key in (pynput_keyboard.Key.ctrl, pynput_keyboard.Key.ctrl_l, pynput_keyboard.Key.ctrl_r):
+            ctrl_down = False
+            return
+        try:
+            ch = key.char
+        except AttributeError:
+            return
+        if ch:
+            with lock:
+                held.discard(ch.upper())
+
+    try:
+        with pynput_keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+            stop_event.wait()
+    except Exception as exc:
+        print("keyboard listener failed: %s (on macOS grant Accessibility permission)" % exc,
+              flush=True)
 
 
 async def find_board(name_prefix, timeout):
@@ -152,7 +177,7 @@ async def main():
                     except Exception as exc:
                         if "auth" not in str(exc).lower() and "encrypt" not in str(exc).lower():
                             raise
-                        print("Board wants pairing; asking Windows to pair...", flush=True)
+                        print("Board wants pairing; asking the host to pair...", flush=True)
                         await client.pair()
                         print("Paired. Retrying.", flush=True)
                         await pump(client, key_queue, args.debug)

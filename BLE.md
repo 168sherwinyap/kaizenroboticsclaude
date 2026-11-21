@@ -11,7 +11,8 @@ Nothing needs to be rebuilt or reflashed for normal use.
 
 ## Start it
 
-1. Double-click **`run_ble_bridge.cmd`**.
+1. Double-click **`run_ble_bridge.cmd`** (Windows) or run **`./run_ble_bridge.sh`**
+   (macOS/Linux).
    A console window opens, saying `Keyboard bridge running`.
 2. **Tap the micro:bit's reset button once.**
    The program starts and advertises for only a few seconds; the bridge, already
@@ -47,17 +48,18 @@ Bluetooth work without it.
 
 ## Pairing (only needed after a reflash, or if you remove the device)
 
-The board and Windows keep a bond. Reflashing the firmware wipes the board's side, so
-the two disagree and every connection drops after about a second.
+The board and your computer keep a bond. Reflashing the firmware wipes the board's side,
+so the two disagree and every connection drops after about a second.
 
 1. Put the board in pairing mode: hold **A+B**, tap reset, keep holding A+B until
    `PAIRING MODE!` scrolls (it then shows a pattern).
-2. Windows: **Settings → Bluetooth & devices → Add device → Bluetooth**, pick
-   `BBC micro:bit [xxxxx]`.
+2. Pair it from the OS: **Settings → Bluetooth** (Windows: *Add device → Bluetooth*;
+   macOS: *Bluetooth*; Linux: `bluetoothctl pair <MAC>`), pick `BBC micro:bit [xxxxx]`.
 3. Start the bridge, then tap reset once.
 
-If pairing misbehaves, remove `BBC micro:bit` from Windows' Bluetooth list first, then
-repeat. `python scripts/ble_pair_then_grab.py` automates unpair → pair on sight.
+If pairing misbehaves, remove `BBC micro:bit` from the OS's Bluetooth list first, then
+repeat. `python scripts/ble_pair_then_grab.py` automates unpair → pair on sight on
+Windows (on macOS/Linux remove the device manually first).
 
 ## Rebuilding the firmware (rarely needed)
 
@@ -66,11 +68,12 @@ cd ble
 makecode
 ```
 
-Then copy `ble/built/binary.hex` to the `D:` drive. After that, re-pair as above.
-Building needs Node.js and `npm install -g makecode`.
+Then flash it: `python scripts/flash.py ble/built/binary.hex` (or copy the file to the
+MICROBIT drive). After that, re-pair as above. Building needs Node.js and
+`npm install -g makecode`.
 
 ## Going back to MicroPython
 
-Copy `firmware/micropython-microbit-v2.1.1.hex` to `D:`, then run
-`scripts/install_servo.ps1` — that restores the original faces + servo over USB
+Run `python scripts/flash.py firmware/micropython-microbit-v2.1.1.hex`, then
+`python scripts/install_servo.py` — that restores the original faces + servo over USB
 serial, and the Bluetooth program is gone.

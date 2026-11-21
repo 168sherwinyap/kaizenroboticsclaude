@@ -3,8 +3,10 @@
 Detail for each board program and its PC side: hardware facts, architecture, commands,
 install and verify steps, protocols and file lists. `SKILL.md` in this folder has the
 stack choice, the hard constraints and the troubleshooting table. All paths are relative
-to the repository root. Commands are written for Windows (PowerShell, COM ports, the
-`D:` MICROBIT drive).
+to the repository root. Commands work on Windows, macOS and Linux; the serial port is
+auto-detected by VID/PID and the micro:bit mounts as a drive labelled `MICROBIT`
+(`/Volumes/MICROBIT` on macOS, `/media/<user>/MICROBIT` on Linux, a `MICROBIT` drive on
+Windows).
 
 ## Hardware/firmware facts (verified on this device)
 
@@ -23,15 +25,16 @@ to the repository root. Commands are written for Windows (PowerShell, COM ports,
 - The servo rail is powered from the RobotBit's 18650 battery with its power switch ON.
   USB alone powers only the micro:bit. The RobotBit's own USB port is charge-only;
   program through the micro:bit's USB port.
-- The `D:` drive is DAPLink storage, **not** the MicroPython filesystem. Copying
-  `main.py` to `D:` does not install or run it — the board's `os.listdir()` stays empty.
-  Dropping a `.hex` on `D:` does flash it (takes ~20 s; a first attempt can fail with
+- The `MICROBIT` drive is DAPLink storage, **not** the MicroPython filesystem. Copying
+  `main.py` to it does not install or run it — the board's `os.listdir()` stays empty.
+  Dropping a `.hex` on it does flash it (takes ~20 s; a first attempt can fail with
   `FAIL.TXT` / "transfer timed out" — retry the copy).
-- The micro:bit's USB CDC port is identified by USB `VID_0D28&PID_0204`; it renumbers on a
-  re-plug **or a power cycle** (seen: COM6 → COM8 → another port), so always re-detect.
-  The keyboard bridge and `radar_probe.py` auto-detect by VID/PID; the Sentinel page's
-  **Connect** picker lists whatever exists. Several older probe scripts hardcode COM6 or
-  COM7 — pass `-port COMx` explicitly when running those.
+- The micro:bit's USB CDC port is identified by USB VID `0D28` / PID `0204`; it renumbers
+  on a re-plug **or a power cycle**, so always re-detect. The bridges, probes and
+  `flash.py` auto-detect it (`COMx` on Windows, `/dev/tty.usbmodem*` on macOS,
+  `/dev/ttyACM*` on Linux); the Sentinel page's **Connect** picker lists whatever exists.
+  Several older scripts in `scripts/archive/` hardcode COM6 or COM7 — pass the port
+  explicitly when running those.
 - **v2 compass gotcha (verified):** `input.compassHeading()` and `input.calibrateCompass()`
   hang the board at boot on this hardware — the program never runs, even a first serial
   write at module scope is lost. `input.magneticForce()` (raw µT) works fine. Read the raw
@@ -43,17 +46,17 @@ to the repository root. Commands are written for Windows (PowerShell, COM ports,
 
 Three pieces form the whole system:
 
-1. **`keyboard_bridge.ps1`** (PC side). Globally polls `GetAsyncKeyState` for K, J, R
+1. **`keyboard_bridge.py`** (PC side). Globally listens (via `pynput`) for K, J, R
    and X, writes one byte per key press to the serial port at 115200, and prints whatever
    the board echoes. Auto-detects the port, sends on key-down edges only, stops with
-   Ctrl+C. It holds the COM port exclusively while running.
+   Ctrl+C. It holds the serial port exclusively while running.
 2. **`main.py`** (board side). Loops on `uart.any()` / `uart.read(1)`: `k` shows
    `Image.HAPPY`, prints `smile`, then drives S1 to 90°; `j` shows `Image.SAD`, prints
    `frown`, then drives S1 to 0°; `r` shows the `CIRCLE` image, prints `circle`, then
    drives S1 to 0°; `x` shows the `CROSS` image, prints `cross`, then drives S1 to 180°.
    It contains a small inline PCA9685 driver (`_wr` / `_init` / `servo`). I²C errors are
    swallowed so the images keep working if the RobotBit is off.
-3. **`run_bridge.cmd`**. Double-click launcher for the bridge.
+3. **`run_bridge.sh`** / **`run_bridge.cmd`**. Launcher for the bridge.
 
 The serial protocol is the contract: the bridge sends raw `k`/`j`/`r`/`x` and prints the
 board's echo verbatim. Keep the `smile` / `frown` / `circle` / `cross` echo strings
@@ -67,55 +70,53 @@ embeds an older copy of the program and is legacy — edit `main.py` instead.
 
 Run these from the repository root. Every path below is relative to it.
 
-Run the keyboard bridge (or double-click `run_bridge.cmd`):
+Run the keyboard bridge (or double-click `run_bridge.cmd` / run `./run_bridge.sh`):
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\keyboard_bridge.ps1"
+```bash
+python keyboard_bridge.py
 ```
 
-Install the current `main.py` onto the board (auto-detects the port; `-Port COMx` to
+Install the current `main.py` onto the board (auto-detects the port; `--port <port>` to
 override):
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\install_servo.ps1"
+```bash
+python scripts/install_servo.py
 ```
 
 Verify faces and servo PWM values on hardware:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\verify_servo.ps1"
+```bash
+python scripts/verify_servo.py
 ```
 
-Find the micro:bit's COM port:
+Find the micro:bit's serial port:
 
-```powershell
-powershell -NoProfile -Command "Get-PnpDevice -Class Ports -PresentOnly | Where-Object InstanceId -like '*VID_0D28&PID_0204*' | Select-Object FriendlyName, Status"
+```bash
+python -c "from scripts.microbit_util import find_serial_port; print(find_serial_port())"
+# or: ls /dev/tty.usbmodem* (macOS) / ls /dev/ttyACM* (Linux) / Get-PnpDevice (Windows)
 ```
 
-Stop a stray bridge that is holding the port (install/verify fail with "Access to the
-port ... is denied" while one runs):
+Stop a stray bridge that is holding the port (install/verify fail with an "access denied"
+error while one runs):
 
-```powershell
-powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object Name -eq 'powershell.exe' | Where-Object CommandLine -like '*-File*keyboard_bridge.ps1*' | Where-Object CommandLine -notlike '*-Command*' | Select-Object ProcessId, CommandLine"
+```bash
+pkill -f keyboard_bridge        # macOS/Linux
+# Windows: taskkill /F /IM python.exe   (or close the bridge window)
 ```
 
-```powershell
-powershell -NoProfile -Command "Stop-Process -Id <pid> -Force"
+Flash a `.hex` onto the board:
+
+```bash
+python scripts/flash.py firmware/micropython-microbit-v2.1.1.hex
 ```
 
-Flash MicroPython onto a fresh board (the drive is currently `D:`, labelled MICROBIT):
-
-```powershell
-cmd /c copy /b ".\firmware\micropython-microbit-v2.1.1.hex" D:\MICROPY.HEX
-```
-
-Then wait for `D:` to vanish and return; retry if `FAIL.TXT` appears. After flashing,
-the board runs MicroPython but has an empty filesystem (no `main.py`) until an installer
-runs.
+Then wait for the MICROBIT volume to vanish and return; retry if `FAIL.TXT` appears.
+After flashing, the board runs MicroPython but has an empty filesystem (no `main.py`)
+until an installer runs.
 
 ## Installing a program (the tricky part)
 
-`scripts/install_servo.ps1` is the canonical upload path: open the port, send Ctrl-C to
+`scripts/install_servo.py` is the canonical upload path: open the port, send Ctrl-C to
 break into the REPL, Ctrl-E for paste mode, send a wrapper that writes `main.py` from
 disk line by line, Ctrl-D to execute it, check `FILES`/`LEN`, then Ctrl-D to soft-reset
 into the new program. Constraints this imposes:
@@ -131,7 +132,7 @@ into the new program. Constraints this imposes:
 
 ## Verification
 
-`scripts/verify_servo.ps1` presses the keys over serial and reads state back. Expected
+`scripts/verify_servo.py` presses the keys over serial and reads state back. Expected
 values from a healthy setup:
 
 | Check | Expected |
@@ -175,19 +176,19 @@ no Bluetooth API), so Bluetooth is impossible on that firmware.
 - `ble/pxt.json` — declares `bluetooth`; it conflicts with the default `radio`
   package (`microbit-dal.bluetooth.enabled`), so `radio` must stay out.
 - Build: `cd ble && makecode` (CLI via `npm install -g makecode`) → `ble/built/binary.hex`,
-  flashed by copying to `D:`. `ble/mkc.json` pins the **stable** editor
+  flashed with `python scripts/flash.py ble/built/binary.hex`. `ble/mkc.json` pins the **stable** editor
   (`https://makecode.microbit.org/`); the beta target's Bluetooth never delivered UART
   data. The trailing slash matters — without it mkc builds a broken `ENOTFOUND` URL.
-- `ble_keyboard_bridge.py` — PC side (Python + `bleak`). Polls `GetAsyncKeyState` for
-  A–Z/0–9, connects to `BBC micro:bit`, writes one `<char>\n` per key press, prints the
-  board's echoes. While Ctrl is down, K/J/R/X are sent as `!k`/`!j`/`!r`/`!x` commands
-  instead of letters. Run `python ble_keyboard_bridge.py [--debug]` or
-  `run_ble_bridge.cmd`.
+- `ble_keyboard_bridge.py` — PC side (Python + `bleak`). Listens globally (via `pynput`)
+  for A–Z/0–9, connects to `BBC micro:bit`, writes one `<char>\n` per key press, prints
+  the board's echoes. While Ctrl is down, K/J/R/X are sent as `!k`/`!j`/`!r`/`!x`
+  commands instead of letters. Run `python ble_keyboard_bridge.py [--debug]` or
+  `run_ble_bridge.sh` / `run_ble_bridge.cmd`.
 
 Working procedure (verified end to end):
 
 1. Start the bridge first — it scans continuously and reconnects by itself:
-   `python ble_keyboard_bridge.py` (or `run_ble_bridge.cmd`).
+   `python ble_keyboard_bridge.py` (or `run_ble_bridge.sh` / `run_ble_bridge.cmd`).
 2. If the board has no bond (e.g. after any reflash), pair it: A+B + reset until
    "PAIRING MODE!", then `python scripts/ble_pair_then_grab.py`.
 3. **Tap reset once** with the bridge running. The program starts and advertises
@@ -212,10 +213,9 @@ Pairing/connection constraints (learned the hard way):
   reboot it. A true power cycle needs the RobotBit switch OFF as well.
 - Pairing must happen in **pairing mode**. Calling `pair()` while the program advertises
   fails with bleak `Could not pair with device: 19`.
-- A stale Windows bond makes every connection drop after ~1 s, even before any GATT
-  operation. Unpair first (`Remove-PnpDevice` isn't installed; `pnputil /remove-device
-  <instanceId>` needs admin, or use Settings → Bluetooth → remove the device), then pair
-  fresh.
+- A stale OS bond makes every connection drop after ~1 s, even before any GATT
+  operation. Unpair first (Settings → Bluetooth on Windows/macOS, or
+  `bluetoothctl remove <MAC>` on Linux), then pair fresh.
 - NUS characteristic roles are swapped from the Nordic convention: write to
   `6E400003-B5A3-F393-E0A9-E50E24DCCA9E`; echoes arrive on `...0002` (indicate).
 - Do not enumerate `client.services` and then reuse the client — WinRT raises "The
@@ -224,8 +224,8 @@ Pairing/connection constraints (learned the hard way):
   are the diagnostics used to prove BLE support and UART delivery.
 
 Restore the MicroPython face/servo setup: flash
-`firmware/micropython-microbit-v2.1.1.hex` to `D:`, then run
-`scripts/install_servo.ps1`.
+`firmware/micropython-microbit-v2.1.1.hex` with `python scripts/flash.py`, then run
+`scripts/install_servo.py`.
 
 ## Flappy Bird hand-control game (HC-SR04 → monitor)
 
@@ -257,13 +257,13 @@ flaky there. Avoid P0 (buzzer), P16 (RGB LEDs), P19/P20 (I²C to the PCA9685).
 - `flappy/web/index.html` + `flappy/web/game.js` — the browser game. Chrome/Edge only; Web Serial needs
   a secure context, so it is served on `localhost` (never `file://`). `game.js` parses
   `D:<cm>` lines, maps distance → bird Y, and writes `f\n` when the bird moves up.
-  `run_flappy.cmd` serves `flappy/web/` on `:8000` and opens the URL; click **Connect** and pick
-  the micro:bit port.
-- `run_flappy.cmd` — launcher.
+  `run_flappy.sh` / `run_flappy.cmd` serves `flappy/web/` on `:8000` and opens the URL; click
+  **Connect** and pick the micro:bit port.
+- `run_flappy.sh` / `run_flappy.cmd` — launcher.
 - `kaizen-pushup/` — pushup counter (`index.html` + `app.js`, own README). It needs no
   board program of its own: it reads the same `D:<cm>` stream from the Flappy build. Sensor
   on the floor pointed up at the chest; down < 2 in, up > 5 in (and < 1.5 m); a rep is
-  down → up. `kaizen-pushup/run_kaizen_pushup.cmd` serves it on `:8001`.
+  down → up. `kaizen-pushup/run_kaizen_pushup.sh` / `run_kaizen_pushup.cmd` serves it on `:8001`.
 
 Protocol (the contract): board → browser `D:<cm>` lines; browser → board `f\n` (flap).
 
@@ -274,8 +274,8 @@ its beam); a median-of-`DIST_SAMPLES` (3) filter drops single-sample spikes. Tun
 top of `game.js`: `NEAR_CM`/`FAR_CM` (distance→height), `MAX_VALID_CM`, `DIST_SAMPLES`,
 `PIPE_SPEED`, `PIPE_GAP`, `SMOOTH`. Press **D** in the game for an on-screen raw readout.
 
-Web Serial opens the COM port **exclusively**: `serial_watch.py` / the MicroPython bridge
-fail with "Access is denied" while the browser is connected (and vice-versa).
+Web Serial opens the serial port **exclusively**: `serial_watch.py` / the MicroPython
+bridge fail with an "access denied" error while the browser is connected (and vice-versa).
 
 ## Sonar Sentinel — dual-servo radar + guard arm
 
@@ -285,7 +285,7 @@ S2 is a guard arm that locks when something stays inside a keep-out distance; th
 draws a live phosphor radar scope with fading blips, a real sweep line, a draggable
 keep-out ring and an animated arm, and pings on the alarm edge. Verified end to end on
 this board: `SYS:READY,PCA=OK`, a steady `A:` stream with reversals, `ALARM:1/0` edges,
-both servos moving, and live blips in the page. The board renumbers its COM port after a
+both servos moving, and live blips in the page. The board renumbers its serial port after a
 power cycle — reconnect through the page's picker, don't assume a fixed COM number.
 
 **Wiring**: the HC-SR04 table above is unchanged (VCC 5 V rail, TRIG P1, ECHO P2 through
@@ -306,7 +306,7 @@ sensor and servos stay dead.
   (and again after a disconnect), so the UI is alive without hardware. `app.js` fixes the
   flappy app's connection bugs: feature-detects Web Serial, re-enables Connect after a
   disconnect, releases the reader/writer, and handles partial lines.
-- `run_sentinel.cmd` — serves `sentinel/web` on **:8002** (localhost) and opens it.
+- `run_sentinel.sh` / `run_sentinel.cmd` — serves `sentinel/web` on **:8002** (localhost) and opens it.
 - `scripts/radar_probe.py` — serial protocol oracle: parses the stream, counts rate and
   reversals, schedules commands (`--send "2:i;6:p;9:s"`), prints PASS/FAIL. Close the
   browser first; Web Serial owns the port exclusively.
@@ -330,18 +330,18 @@ Build, flash, run:
 cd sentinel && makecode
 ```
 
-```powershell
-cmd /c copy /b ".\sentinel\built\binary.hex" D:\MICROBIT.HEX
+```bash
+python scripts/flash.py sentinel/built/binary.hex
 ```
 
-```powershell
-.\run_sentinel.cmd
+```bash
+./run_sentinel.sh   # or run_sentinel.cmd on Windows
 ```
 
 Verify without a browser (12 s, auto-detects the port):
 
-```powershell
-python scripts\radar_probe.py COM8 12
+```bash
+python scripts/radar_probe.py 12
 ```
 
 Expected: `SYS:READY,PCA=OK`, ~9–20 `A:` samples/s with angles 20..160 and reversals
@@ -372,7 +372,7 @@ ECHO=P2 through the divider). Battery + power switch ON for the servo rail.
   five finger sliders, and **Home** / **Compass North Reset** buttons. There are **no
   preset poses** — moving all five servos at once reset the RobotBit (power surge). Demo
   mode feeds synthetic standing-pose data when no board is connected.
-- `run_handlab.cmd` — serves `handlab/web` on **:8003** (localhost) and opens it.
+- `run_handlab.sh` / `run_handlab.cmd` — serves `handlab/web` on **:8003** (localhost) and opens it.
 - `scripts/handlab_probe.py` — serial probe for the telemetry/servo protocol.
 - `handlab/README.md` — operator how-to, protocol table, troubleshooting.
 
@@ -395,18 +395,18 @@ Build, flash, run:
 cd handlab && makecode
 ```
 
-```powershell
-cmd /c copy /b ".\handlab\built\binary.hex" D:\MICROBIT.HEX
+```bash
+python scripts/flash.py handlab/built/binary.hex
 ```
 
-```powershell
-.\run_handlab.cmd
+```bash
+./run_handlab.sh   # or run_handlab.cmd on Windows
 ```
 
 Verify without a browser:
 
-```powershell
-python scripts\handlab_probe.py COM9 12
+```bash
+python scripts/handlab_probe.py 12
 ```
 
 Expected: `PCA=OK`, ~10 `S T=.. L=.. MIC=..` samples/s, a steady magnetic-field magnitude
@@ -421,7 +421,7 @@ Expected: `PCA=OK`, ~10 `S T=.. L=.. MIC=..` samples/s, a steady magnetic-field 
   - `main_old_board.py` — the previous board program (buttons A/B, logo touch, shake
     gesture). Not deployed.
   - `install_kj.ps1`, `save_v2.ps1`, `save_and_run.ps1` — older installers, superseded by
-    `scripts/install_servo.ps1`.
+    `scripts/install_servo.py`.
   - `probe_*.ps1`, `verify_k.ps1`, `verify_v2.ps1`, `verify_running.ps1`, `test_keys.ps1`,
     `serial_check.ps1`, `check_state.ps1`, `finalize.ps1`, `microbit_verify.ps1` — ad-hoc
     hardware probes (UART, logo touch, images, faces).
@@ -433,12 +433,15 @@ Expected: `PCA=OK`, ~10 `S T=.. L=.. MIC=..` samples/s, a steady magnetic-field 
   `built/` and any `pxt_modules/` are build output, ignored by git and recreated by
   `makecode`.
 - `kaizen-pushup/` — the pushup counter app (browser only, reuses `flappy/built/binary.hex`).
-- `kaizen-pushup/run_kaizen_pushup.cmd` — launcher for the pushup page on `:8001`.
+- `kaizen-pushup/run_kaizen_pushup.sh` / `run_kaizen_pushup.cmd` — launcher for the pushup page on `:8001`.
 - `sentinel/` — the Sonar Sentinel demo (board program, browser app, README).
-- `run_sentinel.cmd` — launcher for the radar page on `:8002`.
+- `run_sentinel.sh` / `run_sentinel.cmd` — launcher for the radar page on `:8002`.
 - `scripts/radar_probe.py` — serial probe for the radar protocol.
 - `handlab/` — the HandLab demo (board program, browser app, README).
-- `run_handlab.cmd` — launcher for the HandLab page on `:8003`.
+- `run_handlab.sh` / `run_handlab.cmd` — launcher for the HandLab page on `:8003`.
 - `scripts/handlab_probe.py` — serial probe for the HandLab telemetry/servo protocol.
-- `.claude/launch.json` — dev-server entries for the Claude app's browser pane
-  (`sentinel` on `:8002`, `handlab` on `:8003`).
+- `.claude/launch.json` — dev-server entries for the Claude app's browser pane (flappy
+  `:8000`, kaizen-pushup `:8001`, sentinel `:8002`, handlab `:8003`).
+- `keyboard_bridge.py`, `scripts/install_servo.py`, `scripts/verify_servo.py`,
+  `scripts/flash.py`, `scripts/microbit_util.py` — cross-platform PC tools; see
+  `requirements.txt` for their Python dependencies.

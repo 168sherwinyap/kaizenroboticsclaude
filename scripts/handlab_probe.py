@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Read and exercise the HandLab sensor + servo serial protocol.
 
-Close the browser first — Web Serial owns the COM port exclusively.
+Close the browser first — Web Serial owns the serial port exclusively.
 
 Usage:
     python scripts/handlab_probe.py                  # auto-detect, 12 s
-    python scripts/handlab_probe.py COM8 20
-    python scripts/handlab_probe.py COM8 20 --send "2:s1:150;4:s5:30;6:home"
+    python scripts/handlab_probe.py <port> 20
+    python scripts/handlab_probe.py <port> 20 --send "1:i;2:s1:150;4:s5:30;6:home"
 
 Scheduled commands use "<seconds>:<command>" separated by ';'. Commands:
-    s<n>:<deg>   set servo n (1-5)   home
+    i            identify (PCA=OK|ERR)   s<n>:<deg>   set servo n (1-5)   home
 """
 
 import argparse
@@ -53,15 +53,15 @@ def parse_schedule(text):
 
 def main():
     ap = argparse.ArgumentParser(description="HandLab serial probe")
-    ap.add_argument("port", nargs="?", help="COM port (default: auto-detect micro:bit)")
+    ap.add_argument("port", nargs="?", help="serial port (default: auto-detect micro:bit)")
     ap.add_argument("seconds", nargs="?", type=float, default=12.0, help="duration (default 12)")
-    ap.add_argument("--send", default="1:home", help='scheduled commands, e.g. "2:s1:150;5:s5:30"')
+    ap.add_argument("--send", default="1:i;2:home", help='scheduled commands, e.g. "2:s1:150;5:s5:30"')
     ap.add_argument("--quiet", action="store_true", help="only print the summary")
     args = ap.parse_args()
 
     port = args.port or find_port()
     if not port:
-        sys.exit("No micro:bit serial port found (VID_0D28&PID_0204). Pass one, e.g. COM8.")
+        sys.exit("No micro:bit serial port found (VID_0D28&PID_0204). Pass one explicitly.")
 
     try:
         ser = serial.Serial(port, 115200, timeout=0.2)

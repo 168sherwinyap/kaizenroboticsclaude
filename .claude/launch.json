@@ -2,6 +2,30 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "flappy",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8000",
+        "--directory",
+        "flappy/web"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "kaizen-pushup",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8001",
+        "--directory",
+        "kaizen-pushup"
+      ],
+      "port": 8001
+    },
+    {
       "name": "sentinel",
       "runtimeExecutable": "python",
       "runtimeArgs": [

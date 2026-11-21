@@ -29,11 +29,13 @@ cd handlab
 makecode
 ```
 
-```powershell
-cmd /c copy /b ".\built\binary.hex" D:\MICROBIT.HEX
+```bash
+# from the repository root
+python scripts/flash.py handlab/built/binary.hex
 ```
 
-Then double-click `run_handlab.cmd` and click **Connect board**. Chrome/Edge only.
+Then run `./run_handlab.sh` (macOS/Linux) or `run_handlab.cmd` (Windows) and click
+**Connect board**. Chrome/Edge only.
 
 ## Controls
 
@@ -61,8 +63,8 @@ derives a heading from `HX`/`HY` and the **Compass North Reset** button re-basel
 Close the browser tab first (Web Serial owns the port exclusively):
 
 ```
-python scripts/handlab_probe.py COM8 15
-python scripts/handlab_probe.py COM8 20 --send "2:s1:150;5:s5:30;8:home"
+python scripts/handlab_probe.py 15
+python scripts/handlab_probe.py 20 --send "2:s1:150;5:s5:30;8:home"
 ```
 
 Expected: `PCA=OK`, ~10 sensor samples/s, a steady magnetic-field magnitude (~50–200 µT),

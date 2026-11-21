@@ -12,3 +12,6 @@ __pycache__/
 
 # MakeCode package sources, downloaded again by the makecode CLI on build
 pxt_modules/
+
+# made by setup.sh
+.venv/
